@@ -1,0 +1,169 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+#data
+data1<-read.table("/Users/phamkhoa/Documents/university/3/stats_model_1/w4/leukoplakia.txt", sep="\t", dec=".", header=TRUE)
+attach(data1)
+
+data2<-read.table("/Users/phamkhoa/Documents/university/3/stats_model_1/w4/applejuiceCRA7152.txt", sep="\t", dec=".", header=TRUE)
+attach(data2)
+```
+
+
+```{r}
+#p1
+#a
+model.a<-glm(Leukoplakia~factor(Alcohol)+factor(Smoker), family = binomial("logit"), data1)
+summary(model.a)
+
+newdata<-data.frame(Alcohol = 3, Smoker = 1)
+predict(model.a,newdata=newdata, type="response")
+# P(Y = 1) = 0.7189541 
+```
+
+```{r}
+#b
+model.bH0<-glm(Leukoplakia~factor(Alcohol), family = binomial("logit"), data1)
+
+model.bH1<-glm(Leukoplakia~factor(Alcohol)+factor(Smoker), family = binomial("logit"), data1)
+
+anova(model.bH0, model.bH1, test = "Chi")
+anova(model.bH0, model.bH1, test = "Chi")$Deviance[2]
+#10.16722
+```
+
+```{r}
+#c
+model.c<-glm(Leukoplakia~factor(Alcohol)+factor(Smoker), family = binomial("logit"), data1)
+newdata<-data.frame(Alcohol = c(3,4), Smoker = c(1,1))
+pred<-predict(model.c,newdata=newdata, type="response")
+predict.data<-data.frame(newdata,pred)
+
+OR<-(pred[2]/(1-pred[2]))/(pred[1]/(1-pred[1]))
+OR
+#0.5927646
+```
+
+```{r}
+#d
+model.dH0<-glm(Leukoplakia~factor(Alcohol)+factor(Smoker), family = quasibinomial("logit"), data1)
+
+model.dH1<-glm(Leukoplakia~factor(Alcohol)*factor(Smoker), family = quasibinomial("logit"), data1)
+
+anova(model.dH0, model.dH1, test = "F")
+anova(model.dH0, model.dH1, test = "F")$F[2]
+# F = 0.442091
+```
+
+```{r}
+#e
+model.eprobit<-glm(Leukoplakia~factor(Alcohol)+factor(Smoker), family = binomial("probit"), data1)
+model.ecauchy<-glm(Leukoplakia~factor(Alcohol)+factor(Smoker), family = binomial("cauchit"), data1)
+model.ecloglog<-glm(Leukoplakia~factor(Alcohol)+factor(Smoker), family = binomial("cloglog"), data1)
+
+AIC(model.eprobit)
+AIC(model.ecauchy)
+AIC(model.ecloglog)
+
+# Choose the cloglog link model
+```
+
+```{r}
+#p3
+#a
+# model g(u) = b0 +b1x1 + b2x2 +b3x3 +b4x4
+#choose Ber distribution
+#Response from R for each different link function in Binomial distribution
+#identity: Error: no valid set of coefficients has been found: please supply starting values
+#log: Error: no valid set of coefficients has been found: please supply starting values
+#inverse: Error: no valid set of coefficients has been found: please supply starting values
+#logit: Okay
+#probit: Okay
+#cauchit: Warning: glm.fit: algorithm did not converge
+#cloglog: Warning: glm.fit: algorithm did not converge
+# Hence, we will compare probit and logit
+model.3a.logit<-glm(Growth ~ pH + Nisin + Temperature + Brix, family = binomial("logit"), data2)
+model.3a.probit<-glm(Growth ~ pH + Nisin + Temperature + Brix, family = binomial("probit"), data2)
+
+AIC(model.3a.logit)
+AIC(model.3a.probit)
+# Choose probit link function with Ber distribution
+
+```
+```{r}
+#b
+newdata<-data.frame(pH = 4.5, Nisin = 20, Temperature = 30, Brix = 17)
+pred<-predict(model.3a.probit,newdata=newdata, type="response")
+pred
+```
+
+```{r}
+#c
+eta<-predict(model.3a.probit, newdata=newdata, type="link", se.fit=TRUE)
+link.lowerbound<-eta$fit-qnorm(0.975)*eta$se.fit
+link.upperbound<-eta$fit+qnorm(0.975)*eta$se.fit
+pnorm(eta$fit)
+#0.1011812 
+
+mu.lowerbound<-pnorm(link.lowerbound)
+mu.upperbound<-pnorm(link.upperbound)
+mu.lowerbound
+#0.01412712 
+mu.upperbound
+#0.3609346 
+```
+
+
+```{r}
+#d
+options(warn=-1)
+newdata<-data.frame(pH = 4.5, Nisin = 20, Temperature = 30, Brix = 17)
+mu.f<-predict(model.3a.probit, newdata=newdata, type="response")
+YS.pred<-100*mu.f
+
+mu.hat<-predict(model.3a.probit, newdata=data2, type="response")
+
+N<-dim(data2)[1]
+
+
+e.b<-numeric()
+
+for(b in 1:1000){
+
+yb<-numeric()
+for(i in 1:N){
+
+yb[i]<-sample(0:1,1,prob=c(1-mu.hat[i],mu.hat[i]))
+
+}
+
+model.b<-glm(yb[1:N]~pH + Nisin + Temperature + Brix, family = binomial("probit"), data=data2)
+
+newdata<-data.frame(pH = 4.5, Nisin = 20, Temperature = 30, Brix = 17)
+
+mu.fB<-predict(model.b, newdata=newdata, type="response")
+YS.predB<-100*mu.fB
+
+yf.b<-sample(0:1,100,prob=c(1-mu.f,mu.f), replace=TRUE)
+
+e.b[b]<-sum(yf.b)-YS.predB
+
+}
+
+var.error<-var(e.b)
+var.error
+
+z<-qnorm(c(0.9))
+lower.bound<-YS.pred-z*sqrt(var.error)
+upper.bound<-YS.pred+z*sqrt(var.error)
+lower.bound
+upper.bound
+
+
+```
+

@@ -1,0 +1,132 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+#Ex1 
+ex1<-read.table("paper.txt", sep="\t", dec=".", header=TRUE)
+attach(ex1)
+
+
+```
+```{r}
+
+#define model
+
+ex1.model.1 <- lm(strength~hardwood, data = ex1)
+summary(ex1.model.1)
+
+ex1.model.main <- lm(strength~hardwood + pressure, data = ex1)
+summary(ex1.model.main)
+
+#a
+# Maximum likelihood estimation for beta2
+coef(ex1.model.main)[3]
+
+```
+```{r}
+#b
+summary(ex1.model.main)$sigma^2
+```
+
+```{r}
+#c
+fitted(ex1.model.main)[1]
+```
+
+```{r}
+#d
+new.data<-data.frame(hardwood=c(7), pressure=c(550))
+mu.hat<-predict(ex1.model.main, newdata=new.data, interval="confidence", level=0.95)
+mu.hat[1] # maximum likelihood point estimate
+mu.hat[2] # lower bound of the 95% confidence interval
+mu.hat[3] # upper bound of the 95% confidence interval
+
+```
+```{r}
+#e
+new.data<-data.frame(hardwood=c(7), pressure=c(550))
+y.hat<-predict(ex1.model.main, newdata=new.data, interval="confidence", level=0.80)
+
+y.hat[1] # best linear unbiased point prediction  
+y.hat[2] # lower bound of the 80% prediction interval
+y.hat[3] # upper bound of the 80% prediction interval
+```
+```{r}
+#f
+anova(ex1.model.1,ex1.model.main, test="F")
+anova(ex1.model.1,ex1.model.main, test="F")$"F"[2] # the value of the test statistic
+anova(ex1.model.1,ex1.model.main, test="F")$"Pr(>F)"[2]  # p-value
+```
+
+```{r}
+#ex2
+ex2<-read.table("makiwaraboard.txt", sep="\t", dec=".", header=TRUE)
+attach(ex2)
+```
+
+```{r}
+#define models
+ex2.model.main <- lm(Deflection~factor(WoodType) + factor(BoardType), data = ex2)
+summary(ex2.model.main)
+
+ex2.model.12 <- lm(Deflection~factor(WoodType)*factor(BoardType), data = ex2)
+summary(ex2.model.12)
+
+```
+```{r}
+#a
+mu.42 <- predict(ex2.model.12, newdata=data.frame(WoodType="Oak", BoardType="Tapered"))
+mu.42
+```
+```{r}
+#b
+interaction.plot(WoodType,BoardType, fitted(ex2.model.main))
+
+# From the plot, we see that "Cheery" WoodType gives the highest estimated level of u
+```
+```{r}
+#c
+betahat<-coef(ex2.model.12)
+#define K
+k1<-c(0,0,0,0,0,1,0,0)
+k2<-c(0,0,0,0,0,0,1,0)
+k3<-c(0,0,0,0,0,0,0,1)
+
+K<-cbind(k1,k2,k3)
+#anova(ex2.model.main,ex2.model.12, test = "F") 
+
+q<-3
+Wald<-(t(t(K)%*%betahat)%*%solve(t(K)%*%vcov(ex2.model.12)%*%K)%*%t(K)%*%betahat)/q
+Wald
+p.value<-pf(Wald, 3, 328, lower.tail = FALSE)
+p.value
+```
+
+```{r}
+#d
+pred<-predict(ex2.model.12, newdata=data.frame(WoodType=c("Oak","Cherry"), BoardType=c("Tapered","Stacked")))
+pred[1]-pred[2]
+```
+
+```{r}
+#e
+betahat<-cbind(coef(ex2.model.12))
+y1<-cbind(c(1,1,0,0,0,0,0,0)) ### Cherry =1, Stacked = 1
+y2<-cbind(c(1,0,0,1,1,0,0,1)) ## Oak = 4, Tapered = 2
+
+pred<-(t(y2)-t(y1))%*%betahat
+sigma2<-sigma(ex2.model.12)^2
+
+#construct the 80% interval
+lower<-pred-qt(0.8,df=328)*sqrt(sigma2*(2+(t(y2)-t(y1))%*%solve(vcov(ex2.model.12))%*%(y2-y1)))
+upper<-pred+qt(0.8,df=328)*sqrt(sigma2*(2+(t(y2)-t(y1))%*%solve(vcov(ex2.model.12))%*%(y2-y1)))
+
+lower
+upper
+```
+
+

@@ -1,0 +1,137 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+```{r}
+#Ex1
+data1<-read.table("/Users/phamkhoa/Documents/university/3/stats_model_1/w3/galapagos.txt", sep="\t", dec=".", header=TRUE)
+attach(data1)
+```
+
+```{r}
+#a
+poi.log<-glm(Species~Area+Elevation+Nearest+Scruz+Adjacent, family = poisson(link = "log"), data = data1)
+
+newdata<-data.frame(Area = 58.27, Elevation= 198, Nearest = 1.1, Scruz = 88.3, Adjacent = 0.57) 
+eta<-predict(poi.log, newdata=newdata, type="link", se.fit=TRUE)
+link.lowerbound<-eta$fit-qnorm(0.975)*eta$se.fit
+link.upperbound<-eta$fit+qnorm(0.975)*eta$se.fit
+
+lower<-exp(link.lowerbound) 
+upper<-exp(link.upperbound)
+lower
+upper
+```
+
+```{r}
+#b
+H0 <- glm(Species~Area, family = poisson(link = "sqrt"), data = data1)
+H1 <- glm(Species~Area+Elevation+Nearest+Scruz+Adjacent, family = poisson(link = "sqrt"), data = data1)
+test<- anova(H0, H1, test = "Chi")
+test$Deviance[2]
+test$`Pr(>Chi)`[2]
+#Deviance = 1618.246
+#Pr(>Chi) = 0
+
+```
+
+```{r}
+#c
+model <-glm(Species~log(Area)+log(Elevation)+log(Nearest)+log(Scruz)+log(Adjacent), family = poisson(link = "log"), data= data1)
+newdata<-data.frame(Area = 58.27, Elevation= 198, Nearest = 1.1, Scruz = 88.3, Adjacent = 0.57) 
+pred<-predict(model, newdata=newdata, type="response")
+xf<-c(1,58.27, 198, 1.1, 88.3, 0.57)
+
+Var.eYf<-pred*(1+pred*t(xf)%*%vcov(model)%*%xf)
+lower.Yf<-pred-qnorm(0.9)*sqrt(Var.eYf)
+upper.Yf<-pred+qnorm(0.9)*sqrt(Var.eYf)
+lower.Yf
+upper.Yf
+
+```
+```{r}
+#d
+library(MASS)
+modelNB.log12345<-glm.nb(Species~Area+Elevation+Nearest+Scruz+Adjacent, data = data1)
+summary(modelNB.log12345)
+modelNB.log12345$fitted.values[1]
+#68.28233
+
+```
+```{r}
+data2<-read.table("/Users/phamkhoa/Documents/university/3/stats_model_1/w3/chromoabnormal.txt", sep="\t", dec=".", header=TRUE)
+attach(data2)
+```
+
+```{r}
+#Ex2
+#a
+m12<-glm(ca~offset(log(cells)) + doseamt*doserate, family = poisson(link = "log"), data = data2)
+newdata <-data.frame(doseamt = 4, doserate = 0.75, cells = 64070)
+pred<-predict(m12, newdata=newdata, type="response")
+pred
+```
+
+```{r}
+#b
+newdata <-data.frame(doseamt = 4, doserate = 0.75, cells = 64070)
+pred<-predict(m12, newdata=newdata, type="response")
+pred
+ratio.prediction<-pred/newdata$cells
+ratio.prediction
+
+xf<-t(cbind(1,4,0.75,3))
+
+Var.eYf<-pred*(1+pred*t(xf)%*%vcov(m12)%*%xf)
+
+lower.Yf<-pred-qnorm(0.9)*sqrt(Var.eYf)
+upper.Yf<-pred+qnorm(0.9)*sqrt(Var.eYf)
+lower.Yf
+upper.Yf
+
+Var.eZf<-((1/newdata$cells)^2)*Var.eYf
+
+lower.Zf<-ratio.prediction-qnorm(0.9)*sqrt(Var.eZf)
+upper.Zf<-ratio.prediction+qnorm(0.9)*sqrt(Var.eZf)
+lower.Zf
+upper.Zf
+```
+
+```{r}
+#c
+H0.quassi <-glm(ca~offset(log(cells)) + doseamt, family = quasipoisson(link = "log"), data = data2)
+#Since we test the significant of X2, I test both B2 and B3
+H1.quassi <-glm(ca~offset(log(cells)) + doseamt*doserate, family = quasipoisson(link = "log"), data = data2)
+
+anova(H0.quassi,H1.quassi, test = "F")
+anova(H0.quassi,H1.quassi, test = "F")$F[2]
+#F = 5.363088
+anova(H0.quassi,H1.quassi, test = "F")$`Pr(>F)`[2]
+#p = 0.01225317
+```
+```{r}
+#d
+i<-glm(ca~offset(log(cells)) + doseamt*doserate, family = poisson(link = "log"), data = data2)
+summary(i)
+ii<-glm(ca~offset(log(cells)) + doseamt*doserate, family = quasipoisson(link = "log"), data = data2)
+summary(ii)
+iii<-glm.nb(ca~offset(log(cells)) + doseamt*doserate, data = data2)
+summary(iii)
+
+AIC(i)
+AIC(ii)
+AIC(iii)
+
+MSE.M1<-sum((ca-fitted(i, type="response"))^2)/27
+MSE.M2<-sum((ca-fitted(ii, type="response"))^2)/27
+MSE.M3<-sum((ca-fitted(iii, type="response"))^2)/27
+
+MSE.M1
+MSE.M2
+MSE.M3
+
+#chose i poisson log model
+```
+

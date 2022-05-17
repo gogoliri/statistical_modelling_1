@@ -1,0 +1,223 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+# import data
+data1<-read.table("/Users/phamkhoa/Documents/university/3/stats_model_1/w5/canopycover.txt", sep="\t", dec=".", header=TRUE)
+attach(data1)
+```
+
+```{r}
+#p1
+library(betareg)
+#a
+a.norm<-glm(canopycover~factor(species) + basalarea + dbh.mean, family = gaussian("identity"), data=data1)
+a.gamma<-glm(canopycover~factor(species) + basalarea + dbh.mean, family = Gamma("log"), data=data1)
+a.ig<-glm(canopycover~factor(species) + basalarea + dbh.mean, family =inverse.gaussian("log"), data=data1)
+a.beta<-betareg(canopycover~factor(species) + basalarea + dbh.mean, data=data1, link=c("logit"))
+
+AIC(a.norm)
+AIC(a.gamma)
+AIC(a.ig)
+AIC(a.beta)
+
+#Choose beta link model
+```
+
+```{r}
+#b
+beta.main<-betareg(canopycover~ basalarea + dbh.mean+factor(species), data=data1, link=c("logit"))
+newdata<-data.frame(basalarea = 20, dbh.mean = 15, species = "pine")
+pred<-predict(beta.main, newdata = newdata, type = "response")
+pred
+```
+```{r}
+#c
+eta<-predict(beta.main, newdata = newdata, type = "link")
+xf <- c(0,20,15,1)
+cov.eta<-t(xf)%*%vcov(beta.main)[-5,-5]%*%xf
+
+lowerbound<-exp(eta-qnorm(0.975)*sqrt(cov.eta))/(1+exp(eta-qnorm(0.975)*sqrt(cov.eta)))
+upperbound<-exp(eta+qnorm(0.975)*sqrt(cov.eta))/(1+exp(eta+qnorm(0.975)*sqrt(cov.eta)))
+lowerbound
+upperbound
+
+```
+
+```{r}
+#d
+library(mvtnorm)
+eta.f<-predict(beta.main, newdata = newdata, type = "link")
+phi.hat<-coef(beta.main)[5]
+xf <- c(0,20,15,1)
+etarow<-c(t(xf),0)
+phirow<-c(rep(0,length(xf)),1)
+A<-rbind(etarow,phirow)
+
+cov.etaphi<-A%*%vcov(beta.main)%*%t(A)
+etaphi.star<-rmvnorm(1000, mean = c(eta.f,phi.hat), sigma = cov.etaphi)
+
+muf.star<-exp(etaphi.star[,1])/(1+exp(etaphi.star[,1]))
+phi.star<-etaphi.star[,2]
+
+p.star<-muf.star*phi.star
+q.star<-phi.star*(1-muf.star)
+
+yf.star<-rbeta(1000, shape1=p.star, shape2=q.star)
+
+lower.bound<-quantile(yf.star, c(0.1))
+upper.bound<-quantile(yf.star, 1-c(0.1))
+lower.bound
+upper.bound
+```
+```{r}
+#e
+library(lmtest)
+beta.2way<-betareg(canopycover~basalarea+dbh.mean + factor(species) + basalarea:factor(species) + dbh.mean:factor(species) , data=data1, link=c("logit"))
+beta.H0<-betareg(canopycover~basalarea+ factor(species)+ basalarea:factor(species), data=data1, link=c("logit"))
+
+lrtest(beta.H0, beta.2way)
+lrtest(beta.H0, beta.2way)$Chisq[2]
+```
+
+```{r}
+#p2 import data
+data2<-read.table("/Users/phamkhoa/Documents/university/3/stats_model_1/w5/NitrogenYield.txt", sep="\t", dec=".", header=TRUE)
+attach(data2)
+```
+
+```{r}
+#a
+a.poly<-lm(Yield~Nitrogen + I(Nitrogen^2))
+coef(a.poly)[3]
+```
+
+```{r}
+#b
+b<-glm(Yield ~ log(Nitrogen), family = gaussian("log"), data = data2)
+newdata <- data.frame(Nitrogen = 150)
+predict(b, newdata = newdata, type = "response")
+```
+
+```{r}
+#c
+library(nlme)
+c<-nls(Yield~SSasymp(Nitrogen, Asym,R0,lrc), data=data2)
+coef(c)[1]
+```
+
+```{r}
+#d
+d<-nls(Yield~SSmicmen(Nitrogen, Vm, K), data=data2)
+predict(d, newdata = newdata, type = "response")
+```
+
+```{r}
+#e
+xf<-c(150)
+beta<-coef(c)
+cov.beta<-vcov(c)
+sigma<-sigma(c)
+
+library(mvtnorm)
+beta.star<-rmvnorm(1000, mean = beta, sigma = cov.beta)
+
+Asym<-beta.star[,1]
+R0<-beta.star[,2]
+lrc<-beta.star[,3]
+
+mu.star<-Asym+(R0-Asym)*exp(-exp(lrc)*newdata$Nitrogen)
+
+yf.star<-rnorm(1000, mean = mu.star, sd =sigma)
+pred.lowerbound<-quantile(yf.star, c(0.1))
+pred.upperbound<-quantile(yf.star, c(0.9))
+pred.lowerbound
+pred.upperbound
+```
+
+```{r}
+#p3 import data
+data3<-read.table("/Users/phamkhoa/Documents/university/3/stats_model_1/w5/caffeine.txt", sep="\t", dec=".", header=TRUE)
+attach(data3)
+```
+
+```{r}
+#a
+# First, we test with the main model
+# from the course,  
+# since poission distribution is for count data model
+# bernuolli and multinomial logit is for catergorical data model
+# beta require Y in a specific range
+# distribution that suitable for this type of data is
+# gaussian, inverse gaussian, gamma
+# in each distribution, we use default link
+
+p3a.gaussian<-glm(Caffeine~factor(Brand)+factor(Formulation), family = gaussian("identity"), data = data3)
+p3a.inversegaussian<-glm(Caffeine~factor(Brand)+factor(Formulation), family = inverse.gaussian("1/mu^2"), data = data3)
+p3a.gamma<-glm(Caffeine~factor(Brand)+factor(Formulation), family = Gamma("inverse"), data = data3)
+
+# We use the AIC score, MSE, Shapiro to test
+#AIC
+AIC(p3a.gaussian)
+AIC(p3a.inversegaussian)
+AIC(p3a.gamma)
+
+# MSE
+mean(residuals(p3a.gaussian, type="response")^2)
+mean(residuals(p3a.inversegaussian, type="response")^2)
+mean(residuals(p3a.gamma, type="response")^2)
+
+#Shapiro test
+shapiro.test(residuals(p3a.gaussian, type="pearson"))
+shapiro.test(residuals(p3a.inversegaussian, type="pearson"))
+shapiro.test(residuals(p3a.gamma, type="pearson"))
+
+
+#So, we will choose the inverse gaussian model with canonical link
+# Now, we must test the variable
+ig.1<-glm(Caffeine~factor(Brand), family = inverse.gaussian("1/mu^2"), data = data3)
+ig.2<-glm(Caffeine~factor(Formulation), family = inverse.gaussian("1/mu^2"), data = data3)
+ig.main<-glm(Caffeine~factor(Brand)+factor(Formulation), family = inverse.gaussian("1/mu^2"), data = data3)
+ig.full<-glm(Caffeine~factor(Brand)*factor(Formulation), family = inverse.gaussian("1/mu^2"), data = data3)
+
+#using l
+library(lmtest)
+lrtest(ig.main, ig.full)
+AIC(ig.full)
+AIC(ig.main)
+AIC(ig.1)
+AIC(ig.2)
+
+# So, based on anova test and AIC, we choose full model of ig with canonical link
+```
+
+```{r}
+#b
+newdata<-data.frame(Brand = "Coke", Formulation = "Diet")
+pred<-predict(ig.full, newdata=newdata, type="response")
+pred
+
+xf<-c(1,0,0,0)
+Var.Yf<-summary(ig.full)$dispersion
+D.f<- pred^3/(-2)
+Var.ef<-Var.Yf+(D.f^2)*t(xf)%*%vcov(ig.full)%*%xf
+Var.ef
+
+lower.yf<-pred-qnorm(0.9)*sqrt(Var.ef)
+upper.yf<-pred+qnorm(0.9)*sqrt(Var.ef)
+
+lower.yf
+upper.yf
+```
+
+```{r}
+#c
+lrtest(ig.2, ig.main)$"Pr(>Chisq)"[2]
+lrtest(ig.2, ig.full)$"Pr(>Chisq)"[2]
+# So, brand is statistically significant
+```
+

@@ -1,0 +1,101 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+# import data 
+data1<-read.table("/Users/phamkhoa/Documents/university/3/stats_model_1/w6/tirereliability.txt", sep="\t", dec=".", header=TRUE)
+attach(data1)
+```
+
+
+```{r}
+# P1
+#a 
+library(survival)
+model.1a<-coxph(Surv(survival, complete)~wedge, data=data1)
+coef(model.1a)
+```
+
+```{r}
+#b
+newdata<-data.frame(wedge=c(0.6))
+sf<-survfit(model.1a, newdata=newdata)
+summary(sf, times=1)
+```
+
+```{r}
+#c
+newdata<-data.frame(wedge=c(0.6,1.6))
+risk<-predict(model.1a, newdata=newdata, type="risk")
+risk[1]/risk[2]
+```
+```{r}
+#d
+model.H1<-coxph(Surv(survival, complete)~wedge + peelForce + interBelt + wedge*peelForce, data=data1)
+model.H0<-coxph(Surv(survival, complete)~peelForce + interBelt, data=data1)
+anova(model.H0, model.H1)
+```
+
+```{r}
+#e
+model.1e<-coxph(Surv(survival, complete)~wedge + peelForce + interBelt + wedge*peelForce, data=data1)
+newdata<-data.frame(wedge=c(0.6), peelForce=c(0.8), interBelt=c(0.7))
+sf<-survfit(model.1e, newdata=newdata,conf.type="plain")
+summary(sf, times=1)
+summary(sf, times=1)$lower
+summary(sf, times=1)$upper
+```
+
+```{r}
+# P2
+#a
+library(eha)
+model.2a<-phreg(Surv(survival, complete)~wedge, data=data1, dist="weibull")
+
+p<-exp(coef(model.2a)[3])
+lambda<-exp(coef(model.2a)[2])
+beta<-coef(model.2a)[1]
+x<-c(0.6,1.6)
+lambda.star<-lambda/exp((x*beta)/p) 
+# h(0.6)/h(1.6) = [lambda.star(1.6)/lambda.star(1.6)]^p
+ratio<-(lambda.star[2]/lambda.star[1])^p 
+ratio
+```
+```{r}
+#b
+mu<-lambda.star[2]*gamma(1+(1/p))
+mu
+```
+ 
+```{r}
+# c
+t.star<-rweibull(10000, shape=p, scale=lambda.star[2])
+lowerbound<-quantile(t.star, c(0.1))
+upperbound<-quantile(t.star, c(0.9))
+lowerbound
+upperbound
+
+qweibull(0.1, shape=p, scale=lambda.star[2])
+qweibull(0.9, shape=p, scale=lambda.star[2])
+```
+
+```{r}
+#e
+model.2e<-phreg(Surv(survival, complete)~wedge + peelForce + interBelt + wedge*peelForce, data=data1, dist="weibull")
+
+p<-exp(coef(model.2e)[6])
+lambda<-exp(coef(model.2e)[5])
+beta<-coef(model.2e)[1:4]
+x<-c(0.6,0.8,0.7,0.6*0.8)
+lambda.star<-lambda/exp(sum(x*beta)/p)
+
+survival1<-1-pweibull(1,shape=p, scale=lambda.star)
+survival1
+
+
+```
+
